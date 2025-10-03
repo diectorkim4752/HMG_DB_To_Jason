@@ -42,18 +42,19 @@ class DataHandler:
             return f"{self.filename_prefix}_{timestamp}.json"
     
     def _format_message_data(self, messages: List[Dict]) -> List[Dict]:
-        """메시지 데이터 포맷팅"""
+        """메시지 데이터 포맷팅 (QR Message Wall API 구조)"""
         formatted_messages = []
         
         for msg in messages:
             formatted_msg = {
                 "id": msg.get("id"),
-                "fileNumber": msg.get("fileNumber"),
-                "createdAt": msg.get("createdAt"),
-                "senderType": msg.get("senderType"),
-                "target": msg.get("target"),
-                "message": msg.get("message"),
-                "hidden": msg.get("hidden", False)
+                "author": msg.get("author"),
+                "content": msg.get("content"),
+                "timestamp": msg.get("timestamp"),
+                "status": msg.get("status"),
+                "language": msg.get("language"),
+                "created_at": msg.get("created_at"),
+                "updated_at": msg.get("updated_at")
             }
             formatted_messages.append(formatted_msg)
         
@@ -81,7 +82,7 @@ class DataHandler:
                 "metadata": {
                     "exportedAt": datetime.now().isoformat(),
                     "totalCount": len(messages),
-                    "source": "ArtistSul CMS",
+                    "source": "QR Message Wall CMS",
                     "version": "1.0",
                     **metadata
                 },
@@ -124,7 +125,7 @@ class DataHandler:
             # API 응답에 메타데이터 추가
             enhanced_response = {
                 "exportedAt": datetime.now().isoformat(),
-                "source": "ArtistSul CMS API",
+                "source": "QR Message Wall CMS API",
                 "version": "1.0",
                 **api_response
             }

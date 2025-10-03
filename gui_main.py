@@ -5,7 +5,7 @@ ArtistSul CMS 데이터베이스 연동 GUI 애플리케이션
 """
 
 import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox, filedialog
+from tkinter import ttk, scrolledtext, messagebox, filedialog, simpledialog
 import threading
 import time
 from datetime import datetime
@@ -120,36 +120,38 @@ class DBToJSONGUI:
         # JWT 토큰 (하드코딩, GUI에서 숨김)
         self.jwt_token_var = tk.StringVar(value=JWT_TOKEN)
         
-        # 실행 간격 (최소 5초 강제)
+        # 실행 간격 (숨김 처리)
         ttk.Label(config_frame, text="실행 간격(초):").grid(row=0, column=0, sticky=tk.W, padx=(0, 10))
         self.interval_var = tk.StringVar(value=str(max(INTERVAL_SECONDS, 5)))  # 최소 5초 보장
-        interval_entry = ttk.Entry(config_frame, textvariable=self.interval_var, width=10)
-        interval_entry.grid(row=0, column=1, sticky=tk.W, padx=(0, 10))
+        self.interval_entry = ttk.Entry(config_frame, textvariable=self.interval_var, width=10, state='readonly', show="*")
+        self.interval_entry.grid(row=0, column=1, sticky=tk.W, padx=(0, 10))
         
-        # 간격 입력 검증
-        interval_entry.bind('<FocusOut>', self.validate_interval)
-        interval_entry.bind('<Return>', self.validate_interval)
-        
-        # 조회 개수 (최신 N개)
+        # 조회 개수 (숨김 처리)
         ttk.Label(config_frame, text="최신 메시지 개수:").grid(row=1, column=0, sticky=tk.W, padx=(0, 10), pady=(10, 0))
         self.fetch_limit_var = tk.StringVar(value=str(FETCH_LIMIT))
-        fetch_entry = ttk.Entry(config_frame, textvariable=self.fetch_limit_var, width=10)
-        fetch_entry.grid(row=1, column=1, sticky=tk.W, padx=(0, 10), pady=(10, 0))
+        self.fetch_entry = ttk.Entry(config_frame, textvariable=self.fetch_limit_var, width=10, state='readonly', show="*")
+        self.fetch_entry.grid(row=1, column=1, sticky=tk.W, padx=(0, 10), pady=(10, 0))
         
         # 설명 라벨 추가
         desc_label = ttk.Label(config_frame, text="(등록시간 기준 최신순으로 정렬)", font=("TkDefaultFont", 8))
         desc_label.grid(row=2, column=1, sticky=tk.W, padx=(0, 10), pady=(5, 0))
         
-        # 출력 폴더
-        ttk.Label(config_frame, text="출력 폴더:").grid(row=3, column=0, sticky=tk.W, padx=(0, 10), pady=(10, 0))
+        # 설정값 숨김 안내 (작은 글씨)
+        hidden_label = ttk.Label(config_frame, text="(설정값은 보안상 숨김 처리됨)", font=("TkDefaultFont", 7), foreground="gray")
+        hidden_label.grid(row=3, column=1, sticky=tk.W, padx=(0, 10), pady=(2, 0))
+        
+        # 출력 폴더 (읽기 전용)
+        ttk.Label(config_frame, text="출력 폴더:").grid(row=4, column=0, sticky=tk.W, padx=(0, 10), pady=(10, 0))
         self.output_dir_var = tk.StringVar(value=OUTPUT_DIR)
         output_frame = ttk.Frame(config_frame)
-        output_frame.grid(row=3, column=1, sticky=(tk.W, tk.E), pady=(10, 0))
+        output_frame.grid(row=4, column=1, sticky=(tk.W, tk.E), pady=(10, 0))
         output_frame.columnconfigure(0, weight=1)
         
-        output_entry = ttk.Entry(output_frame, textvariable=self.output_dir_var)
-        output_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 10))
-        ttk.Button(output_frame, text="찾아보기", command=self.browse_output_dir).grid(row=0, column=1)
+        self.output_entry = ttk.Entry(output_frame, textvariable=self.output_dir_var, state='readonly', show="*")
+        self.output_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 10))
+        
+        # 설정 변경 버튼 (암호 보호)
+        ttk.Button(output_frame, text="⚙️ 설정", command=self.open_settings_dialog).grid(row=0, column=1)
     
     def create_control_frame(self, parent):
         """제어 버튼 프레임 생성"""
@@ -259,11 +261,158 @@ class DBToJSONGUI:
             except Exception as e:
                 self.log_message(f"로그 저장 실패: {e}", "ERROR")
     
+    def open_hidden_settings(self, event=None):
+        """숨겨진 설정 접근 (키보드 단축키)"""
+        # 암호 입력 다이얼로그
+        password = tk.simpledialog.askstring(
+            "보안 설정", 
+            "설정을 변경하려면 암호를 입력하세요:",
+            show='*'
+        )
+        
+        if password == "04300430":
+            self.log_message("🔐 암호 인증 성공. 설정 변경 모드를 활성화합니다.", "SUCCESS")
+            self.show_settings_dialog()
+        elif password is None:
+            self.log_message("⚙️ 설정 변경이 취소되었습니다.", "INFO")
+        else:
+            self.log_message("❌ 잘못된 암호입니다. 설정 변경이 거부되었습니다.", "ERROR")
+            messagebox.showerror("인증 실패", "잘못된 암호입니다!\n\n설정을 변경할 수 없습니다.")
+    
+    def open_settings_dialog(self):
+        """설정 변경 다이얼로그 열기 (암호 보호)"""
+        # 암호 입력 다이얼로그
+        password = tk.simpledialog.askstring(
+            "보안 설정", 
+            "설정을 변경하려면 암호를 입력하세요:",
+            show='*'
+        )
+        
+        if password == "04300430":
+            self.log_message("🔐 암호 인증 성공. 설정 변경 모드를 활성화합니다.", "SUCCESS")
+            self.show_settings_dialog()
+        elif password is None:
+            self.log_message("⚙️ 설정 변경이 취소되었습니다.", "INFO")
+        else:
+            self.log_message("❌ 잘못된 암호입니다. 설정 변경이 거부되었습니다.", "ERROR")
+            messagebox.showerror("인증 실패", "잘못된 암호입니다!\n\n설정을 변경할 수 없습니다.")
+    
+    def show_settings_dialog(self):
+        """설정 변경 다이얼로그 표시"""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("설정 변경 - LoadDB(directorkim@scenes.kr)")
+        dialog.geometry("450x500")
+        dialog.resizable(False, False)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        
+        # 다이얼로그 중앙 배치
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() // 2) - (450 // 2)
+        y = (dialog.winfo_screenheight() // 2) - (500 // 2)
+        dialog.geometry(f"450x500+{x}+{y}")
+        
+        # 메인 프레임
+        main_frame = ttk.Frame(dialog, padding="20")
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # 설정 변경 폼
+        ttk.Label(main_frame, text="⚙️ 설정 변경", font=("TkDefaultFont", 14, "bold")).pack(pady=(0, 30))
+        
+        # 설명 라벨
+        desc_label = ttk.Label(main_frame, text="설정을 변경하면 자동으로 저장됩니다.", 
+                              font=("TkDefaultFont", 9), foreground="gray")
+        desc_label.pack(pady=(0, 20))
+        
+        # 실행 간격
+        ttk.Label(main_frame, text="실행 간격(초):", font=("TkDefaultFont", 10, "bold")).pack(anchor=tk.W, pady=(10, 5))
+        interval_var = tk.StringVar(value=self.interval_var.get())
+        interval_entry = ttk.Entry(main_frame, textvariable=interval_var, width=25, font=("TkDefaultFont", 10))
+        interval_entry.pack(fill=tk.X, pady=(0, 20))
+        
+        # 조회 개수
+        ttk.Label(main_frame, text="최신 메시지 개수:", font=("TkDefaultFont", 10, "bold")).pack(anchor=tk.W, pady=(10, 5))
+        fetch_limit_var = tk.StringVar(value=self.fetch_limit_var.get())
+        fetch_entry = ttk.Entry(main_frame, textvariable=fetch_limit_var, width=25, font=("TkDefaultFont", 10))
+        fetch_entry.pack(fill=tk.X, pady=(0, 20))
+        
+        # 출력 폴더
+        ttk.Label(main_frame, text="출력 폴더:", font=("TkDefaultFont", 10, "bold")).pack(anchor=tk.W, pady=(10, 5))
+        output_frame = ttk.Frame(main_frame)
+        output_frame.pack(fill=tk.X, pady=(0, 30))
+        
+        output_dir_var = tk.StringVar(value=self.output_dir_var.get())
+        output_entry = ttk.Entry(output_frame, textvariable=output_dir_var, font=("TkDefaultFont", 10))
+        output_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+        
+        def browse_dir():
+            directory = filedialog.askdirectory()
+            if directory:
+                output_dir_var.set(directory)
+                # 자동 저장
+                auto_save_settings()
+        
+        ttk.Button(output_frame, text="📁 찾아보기", command=browse_dir).pack(side=tk.RIGHT)
+        
+        # 자동 저장 함수
+        def auto_save_settings():
+            try:
+                # 입력 검증
+                interval = int(interval_var.get())
+                if interval < 5:
+                    self.log_message("⚠️ 실행 간격은 최소 5초입니다. 5초로 설정됩니다.", "WARNING")
+                    interval_var.set("5")
+                    interval = 5
+                
+                fetch_limit = int(fetch_limit_var.get())
+                if fetch_limit < 1:
+                    self.log_message("⚠️ 메시지 개수는 1개 이상이어야 합니다. 1개로 설정됩니다.", "WARNING")
+                    fetch_limit_var.set("1")
+                    fetch_limit = 1
+                
+                # 설정 업데이트
+                self.interval_var.set(str(interval))
+                self.fetch_limit_var.set(str(fetch_limit))
+                self.output_dir_var.set(output_dir_var.get())
+                
+                # 설정 저장
+                self.save_config()
+                
+                self.log_message("💾 설정이 자동으로 저장되었습니다.", "SUCCESS")
+                
+            except ValueError:
+                self.log_message("⚠️ 숫자만 입력해주세요.", "WARNING")
+        
+        # 입력 변경 시 자동 저장 바인딩
+        interval_var.trace('w', lambda *args: auto_save_settings())
+        fetch_limit_var.trace('w', lambda *args: auto_save_settings())
+        
+        # 상태 표시 라벨
+        status_label = ttk.Label(main_frame, text="✅ 설정이 자동으로 저장됩니다", 
+                                font=("TkDefaultFont", 9), foreground="green")
+        status_label.pack(pady=(20, 10))
+        
+        # 버튼 프레임 (더 크게)
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(fill=tk.X, pady=(30, 0))
+        
+        # 닫기 버튼 (중앙 배치)
+        close_button = ttk.Button(button_frame, text="❌ 창 닫기", command=dialog.destroy)
+        close_button.pack(side=tk.RIGHT)
+        
+        # 새로고침 버튼
+        def refresh_settings():
+            interval_var.set(self.interval_var.get())
+            fetch_limit_var.set(self.fetch_limit_var.get())
+            output_dir_var.set(self.output_dir_var.get())
+            self.log_message("🔄 설정이 새로고침되었습니다.", "INFO")
+        
+        refresh_button = ttk.Button(button_frame, text="🔄 새로고침", command=refresh_settings)
+        refresh_button.pack(side=tk.RIGHT, padx=(0, 10))
+    
     def browse_output_dir(self):
-        """출력 폴더 선택"""
-        directory = filedialog.askdirectory()
-        if directory:
-            self.output_dir_var.set(directory)
+        """출력 폴더 선택 (더 이상 사용되지 않음)"""
+        pass
     
     def validate_interval(self, event=None):
         """실행 간격 검증 (최소 5초 강제)"""

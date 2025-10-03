@@ -9,13 +9,13 @@ BASE_URL = "https://artistsul-cms-worker.directorkim.workers.dev"
 JWT_TOKEN = "None"
 
 # 출력 설정
-OUTPUT_DIR = "./output"
+OUTPUT_DIR = "C:/HMG-messagw-visualizer/Assets/StreamingAssets"
 JSON_FILENAME_PREFIX = "messages"
 JSON_FILENAME = "messages.json"  # 고정 파일명 (갱신 방식)
 USE_FIXED_FILENAME = True  # True: 고정 파일명, False: 타임스탬프 포함
 
 # 실행 설정
-INTERVAL_SECONDS = 5
+INTERVAL_SECONDS = 5  # 최소 5초 강제
 FETCH_LIMIT = 50
 AUTO_START = True  # 프로그램 실행 시 자동으로 데이터 수집 시작
 

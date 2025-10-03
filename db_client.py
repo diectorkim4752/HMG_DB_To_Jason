@@ -94,38 +94,28 @@ class DBClient:
         logger.error(f"❌ 최대 재시도 횟수 초과: {MAX_RETRIES}")
         return None
     
-    def get_messages(self, start_date: str = None, end_date: str = None, 
-                    page: int = 1, page_size: int = None) -> Optional[Dict]:
-        """메시지 데이터 조회 (CMS 개발자 제공 API 스펙 기반)"""
-        if page_size is None:
-            page_size = min(FETCH_LIMIT, 100)  # API 최대 제한 100
+    def get_messages(self, limit: int = None) -> Optional[Dict]:
+        """메시지 데이터 조회 (QR Message Wall API)"""
+        if limit is None:
+            limit = FETCH_LIMIT
         
-        # 날짜 설정 (필수 파라미터)
-        if not start_date:
-            start_date = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
-        if not end_date:
-            end_date = datetime.now().strftime("%Y-%m-%d")
+        logger.info(f"📅 메시지 조회: 최신 {limit}개")
         
-        # CMS 개발자 제공 파라미터 형식
-        params = {
-            "start": start_date,      # 필수: 시작날짜 (YYYY-MM-DD)
-            "end": end_date,          # 필수: 종료날짜 (YYYY-MM-DD)
-            "page": page,             # 기본값: 1
-            "pageSize": page_size     # 기본값: 100, 최대: 100
-        }
+        # QR Message Wall API 엔드포인트 사용
+        response = self._make_request("GET", API_ENDPOINTS["messages"])
         
-        logger.info(f"📅 메시지 조회: {start_date} ~ {end_date}, 페이지: {page}, 크기: {page_size}")
-        
-        # CMS 개발자 제공 API 엔드포인트 사용
-        response = self._make_request("GET", API_ENDPOINTS["messages"], params=params)
-        
-        if response and response.get("ok"):
-            data = response.get("data", {})
-            items = data.get("items", [])
-            total_pages = data.get("totalPages", 1)
+        if response and response.get("success"):
+            data = response.get("data", [])
+            count = response.get("count", 0)
             
-            logger.info(f"✅ API 성공: {len(items)}개 (총 {total_pages}페이지)")
-            return response
+            logger.info(f"✅ API 성공: {len(data)}개 메시지 조회")
+            return {
+                "ok": True,
+                "data": {
+                    "items": data,
+                    "totalCount": count
+                }
+            }
         else:
             logger.error(f"❌ API 실패: {response}")
             return None
@@ -135,22 +125,23 @@ class DBClient:
         if limit is None:
             limit = FETCH_LIMIT
         
-        # 넓은 날짜 범위로 설정하여 최신 데이터 확보
-        end_date = datetime.now().strftime("%Y-%m-%d")
-        start_date = (datetime.now() - timedelta(days=365)).strftime("%Y-%m-%d")  # 1년 범위
+        logger.info(f"📅 최신 메시지 조회: {limit}개")
         
-        logger.info(f"📅 최신 메시지 조회: {limit}개 (날짜 범위: {start_date} ~ {end_date})")
-        
-        response = self.get_messages(start_date, end_date, page_size=limit)
+        response = self.get_messages(limit)
         
         if response and response.get("ok"):
             messages = response.get("data", {}).get("items", [])
             
-            # 등록시간 기준으로 정렬 (최신순)
+            # 등록시간 기준으로 정렬 (최신순) - API에서 이미 정렬되어 옴
             if messages:
                 try:
-                    # createdAt 기준으로 정렬 (최신순)
-                    messages.sort(key=lambda x: x.get("createdAt", ""), reverse=True)
+                    # created_at 기준으로 정렬 (최신순)
+                    messages.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+                    
+                    # limit 개수만큼 자르기
+                    if len(messages) > limit:
+                        messages = messages[:limit]
+                    
                     logger.info(f"✅ 최신순 정렬 완료: {len(messages)}개 메시지")
                 except Exception as e:
                     logger.warning(f"⚠️ 정렬 실패, 원본 순서 유지: {e}")
@@ -173,32 +164,13 @@ class DBClient:
             if response.status_code == 200:
                 logger.info("✅ 기본 URL 연결 성공!")
                 
-                # 2. 워커페이지 API 엔드포인트들 테스트
-                endpoints_to_test = [
-                    # 워커페이지 가능한 경로들
-                    "/worker/messages",
-                    "/worker/api/messages", 
-                    "/functions/messages",
-                    "/pages/api/messages",
-                    
-                    # 기존 API 경로들
-                    "/api/messages",
-                    "/api/admin/login",
-                    "/api/v1/messages",
-                    "/admin/api/messages",
-                    
-                    # 테스트 경로들
-                    "/api/health",
-                    "/api/test"
-                ]
+                # 2. 메시지 API 엔드포인트 테스트
+                test_result = self._test_endpoint("/api/messages")
+                if test_result:
+                    logger.info(f"✅ /api/messages 엔드포인트 사용 가능!")
+                    return True
                 
-                for endpoint in endpoints_to_test:
-                    test_result = self._test_endpoint(endpoint)
-                    if test_result:
-                        logger.info(f"✅ {endpoint} 엔드포인트 사용 가능!")
-                        return True
-                
-                logger.warning("⚠️ 모든 API 엔드포인트 테스트 실패")
+                logger.warning("⚠️ 메시지 API 엔드포인트 테스트 실패")
                 return False
             else:
                 logger.error(f"❌ 기본 URL 연결 실패: {response.status_code}")
@@ -230,13 +202,13 @@ class DBClient:
             logger.error(f"❌ {endpoint} 테스트 오류: {e}")
             return False
     
-    def login(self, username: str, password: str) -> bool:
-        """관리자 로그인 (JWT 토큰 갱신) - CMS 개발자 제공 API"""
-        logger.info(f"🔐 관리자 로그인 시도: {username}")
+    def login(self, email: str, password: str) -> bool:
+        """사용자 로그인 (세션 토큰 갱신) - QR Message Wall API"""
+        logger.info(f"🔐 사용자 로그인 시도: {email}")
         
-        # CMS 개발자 제공 로그인 형식
+        # QR Message Wall API 로그인 형식
         login_data = {
-            "username": username,
+            "email": email,
             "password": password
         }
         
@@ -245,17 +217,17 @@ class DBClient:
         self.jwt_token = None
         
         try:
-            response = self._make_request("POST", API_ENDPOINTS["login"], json=login_data)
+            response = self._make_request("POST", API_ENDPOINTS["auth"], json=login_data)
             
-            if response and response.get("ok"):
-                # CMS 개발자 제공 응답 형식
-                data = response.get("data", {})
-                token = data.get("token")
-                expires_in = data.get("expiresIn", 3600)
+            if response and response.get("success"):
+                # QR Message Wall API 응답 형식
+                token = response.get("token")
+                user = response.get("user", {})
+                expires_at = response.get("expires_at")
                 
                 if token:
                     self.jwt_token = token
-                    logger.info(f"✅ 로그인 성공! JWT 토큰 갱신됨 (만료: {expires_in}초)")
+                    logger.info(f"✅ 로그인 성공! 세션 토큰 갱신됨 (사용자: {user.get('username', email)})")
                     return True
             
             logger.error("❌ 로그인 실패!")
